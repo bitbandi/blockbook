@@ -164,16 +164,13 @@ func (p *ZettelkastenParser) GetAddrDescFromAddress(address string) (bchain.Addr
 // outputScriptToAddresses converts ScriptPubKey to bitcoin addresses
 func (p *ZettelkastenParser) outputScriptToAddresses(script []byte) ([]string, bool, error) {
 	if len(script) == 22 {
-		// "Convert" <hash> OP_CHECKSIG to OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_CHECKSIG
-		realAddr, err := btcutil.NewAddressPubKeyHash(script[1:len(script)-1], p.Params)
+		rv := make([]string, 1)
+		address, err := btcutil.NewAddressPubKeyHash(script[1:len(script)-1], p.Params)
 		if err != nil {
 			return nil, false, err
 		}
-		realScript, err := txscript.PayToAddrScript(realAddr)
-		if err != nil {
-			return nil, false, err
-		}
-		return p.BitcoinOutputScriptToAddressesFunc(realScript)
+		rv[0] = address.EncodeAddress()
+		return rv, true, nil
 	}
 	// TODO: multisign address
 	return p.BitcoinOutputScriptToAddressesFunc(script)
