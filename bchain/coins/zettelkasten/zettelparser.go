@@ -18,13 +18,11 @@ import (
 // magic numbers
 const (
 	MainnetMagic wire.BitcoinNet = 0xc2e3cbfa
-	TestnetMagic wire.BitcoinNet = 0x0709110b
 )
 
 // chain parameters
 var (
 	MainNetParams chaincfg.Params
-	TestNetParams chaincfg.Params
 )
 
 func init() {
@@ -34,13 +32,6 @@ func init() {
 	// Address encoding magics
 	MainNetParams.PubKeyHashAddrID = []byte{81}
 	MainNetParams.ScriptHashAddrID = []byte{5}
-
-	TestNetParams = chaincfg.TestNet3Params
-	TestNetParams.Net = TestnetMagic
-
-	// Address encoding magics
-	TestNetParams.PubKeyHashAddrID = []byte{111}
-	TestNetParams.ScriptHashAddrID = []byte{196}
 }
 
 // ZettelkastenParser handle
@@ -61,22 +52,15 @@ func NewZettelkastenParser(params *chaincfg.Params, c *btc.Configuration) *Zette
 	return p
 }
 
-// GetChainParams contains network parameters for the main Zettelkasten network,
-// the regression test Zettelkasten network, the test Zettelkasten network and
-// the simulation test Zettelkasten network, in this order
+// GetChainParams contains network parameters for the main Zettelkasten network
 func GetChainParams(chain string) *chaincfg.Params {
 	if !chaincfg.IsRegistered(&MainNetParams) {
 		err := chaincfg.Register(&MainNetParams)
-		if err == nil {
-			err = chaincfg.Register(&TestNetParams)
-		}
 		if err != nil {
 			panic(err)
 		}
 	}
 	switch chain {
-	case "test":
-		return &TestNetParams
 	default:
 		return &MainNetParams
 	}
