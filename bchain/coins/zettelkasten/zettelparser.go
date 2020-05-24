@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/martinboehm/btcd/wire"
+	"github.com/martinboehm/btcutil"
 	"github.com/martinboehm/btcutil/chaincfg"
+	"github.com/martinboehm/btcutil/txscript"
 	"github.com/trezor/blockbook/bchain"
 	"github.com/trezor/blockbook/bchain/coins/btc"
 	"github.com/trezor/blockbook/bchain/coins/utils"
@@ -45,14 +47,18 @@ func init() {
 type ZettelkastenParser struct {
 	*btc.BitcoinParser
 	baseparser *bchain.BaseParser
+	BitcoinOutputScriptToAddressesFunc btc.OutputScriptToAddressesFunc
 }
 
 // NewZettelkastenParser returns new ZettelkastenParser instance
 func NewZettelkastenParser(params *chaincfg.Params, c *btc.Configuration) *ZettelkastenParser {
-	return &ZettelkastenParser{
+	p := &ZettelkastenParser{
 		BitcoinParser: btc.NewBitcoinParser(params, c),
 		baseparser:    &bchain.BaseParser{},
 	}
+	p.BitcoinOutputScriptToAddressesFunc = p.OutputScriptToAddressesFunc
+	p.OutputScriptToAddressesFunc = p.outputScriptToAddresses
+	return p
 }
 
 // GetChainParams contains network parameters for the main Zettelkasten network,
@@ -148,4 +154,40 @@ func (p *ZettelkastenParser) ParseBlock(b []byte) (*bchain.Block, error) {
 		},
 		Txs: txs,
 	}, nil
+}
+
+// GetAddrDescFromAddress returns internal address representation of given address
+func (p *ZettelkastenParser) GetAddrDescFromAddress(address string) (bchain.AddressDescriptor, error) {
+	return p.addressToOutputScript(address)
+}
+
+// outputScriptToAddresses converts ScriptPubKey to bitcoin addresses
+func (p *ZettelkastenParser) outputScriptToAddresses(script []byte) ([]string, bool, error) {
+	if len(script) == 22 {
+		// "Convert" <hash> OP_CHECKSIG to OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_CHECKSIG
+		realAddr, err := btcutil.NewAddressPubKeyHash(script[1:len(script)-1], p.Params)
+		if err != nil {
+			return nil, false, err
+		}
+		realScript, err := txscript.PayToAddrScript(realAddr)
+		if err != nil {
+			return nil, false, err
+		}
+		return p.BitcoinOutputScriptToAddressesFunc(realScript)
+	}
+	// TODO: multisign address
+	return p.BitcoinOutputScriptToAddressesFunc(script)
+}
+
+// addressToOutputScript converts bitcoin address to ScriptPubKey
+func (p *ZettelkastenParser) addressToOutputScript(address string) ([]byte, error) {
+	da, err := btcutil.DecodeAddress(address, p.Params)
+	if err != nil {
+		return nil, err
+	}
+	script, err := txscript.NewScriptBuilder().AddData(da.ScriptAddress()).AddOp(txscript.OP_CHECKSIG).Script()
+	if err != nil {
+		return nil, err
+	}
+	return script, nil
 }
